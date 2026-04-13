@@ -18,8 +18,9 @@ interface OrcidInputProps {
 export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
   const [text, setText] = useState('')
   const [entries, setEntries] = useState<OrcidEntry[]>([])
-  const [yearFrom, setYearFrom] = useState('')
-  const [yearTo, setYearTo] = useState('')
+  const lastYear = (new Date().getFullYear() - 1).toString()
+  const [yearFrom, setYearFrom] = useState(lastYear)
+  const [yearTo, setYearTo] = useState(lastYear)
   const [style, setStyle] = useState<CitationStyle>('vancouver')
   const [sort, setSort] = useState<SortOrder>('date')
 
