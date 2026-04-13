@@ -41,7 +41,7 @@ export function PublicationList({ result, style }: PublicationListProps) {
       for (const pub of pubs) {
         const citation = formatCitation(pub, style, 0, boldNames)
         const pmidHtml = pub.pmid
-          ? ` <span style="font-size:smaller">PMID: <a href="https://pubmed.ncbi.nlm.nih.gov/${pub.pmid}">${pub.pmid}</a></span>`
+          ? ` PMID: <a href="https://pubmed.ncbi.nlm.nih.gov/${pub.pmid}">${pub.pmid}</a>`
           : ''
         htmlParts.push(`<li>${citation}${pmidHtml}</li>`)
       }
