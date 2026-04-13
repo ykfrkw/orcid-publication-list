@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { OrcidInput } from '@/components/OrcidInput'
 import { PublicationList } from '@/components/PublicationList'
 import { Progress } from '@/components/ui/progress'
@@ -37,6 +37,20 @@ function App() {
       setIsLoading(false)
     }
   }
+
+  // Notify parent window of height changes for iframe auto-resize
+  useEffect(() => {
+    if (window.parent === window) return // not in iframe
+    const root = document.documentElement
+    const observer = new ResizeObserver(() => {
+      window.parent.postMessage(
+        { type: 'orcid-pub-list-resize', height: root.scrollHeight },
+        '*',
+      )
+    })
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [])
 
   return (
     <div className="min-h-screen bg-background">
