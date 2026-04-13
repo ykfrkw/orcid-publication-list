@@ -1,11 +1,10 @@
 import type { OrcidEntry, Publication, PublicationCategory, YearRange, SortOrder } from '@/types'
 import { categorizeWork } from '@/types'
 import { fetchOrcidWorks } from './orcid'
-import { batchFetchCrossref } from './crossref'
-import { batchFetchPubMedTypes, batchLookupPmidsByDoi, pubmedTypeToCategory } from './pubmed'
+import { batchFetchOpenAlex, openAlexTypeToCategory } from './openalex'
 
 export interface FetchProgress {
-  stage: 'orcid' | 'crossref' | 'pubmed' | 'done'
+  stage: 'orcid' | 'openalex' | 'done'
   message: string
   percent: number
 }
@@ -68,7 +67,7 @@ export async function runPipeline(
     onProgress?.({
       stage: 'orcid',
       message: `Fetching ORCID works for ${entry.displayName} (${i + 1}/${entries.length})...`,
-      percent: Math.round(((i + 1) / entries.length) * 40),
+      percent: Math.round(((i + 1) / entries.length) * 30),
     })
     try {
       const pubs = await fetchOrcidWorks(entry.orcidId)
@@ -90,83 +89,31 @@ export async function runPipeline(
   // Deduplicate
   allPubs = deduplicatePublications(allPubs)
 
-  // Stage 2: Enrich via Crossref
+  // Stage 2: Enrich via OpenAlex (authors, type, PMID, journal)
   const doisToFetch = allPubs.filter(p => p.doi).map(p => p.doi!)
   onProgress?.({
-    stage: 'crossref',
-    message: `Enriching ${doisToFetch.length} publications via Crossref...`,
-    percent: 40,
+    stage: 'openalex',
+    message: `Enriching ${doisToFetch.length} publications via OpenAlex...`,
+    percent: 35,
   })
 
-  const crossrefData = await batchFetchCrossref(doisToFetch, (done, total) => {
+  const openAlexData = await batchFetchOpenAlex(doisToFetch, (done, total) => {
     onProgress?.({
-      stage: 'crossref',
-      message: `Enriching via Crossref (${done}/${total})...`,
-      percent: 40 + Math.round((done / total) * 45),
+      stage: 'openalex',
+      message: `Enriching via OpenAlex (${done}/${total})...`,
+      percent: 35 + Math.round((done / total) * 60),
     })
   })
 
-  // Merge Crossref data
+  // Merge OpenAlex data
   for (const pub of allPubs) {
     if (pub.doi) {
-      const meta = crossrefData.get(pub.doi.toLowerCase())
+      const meta = openAlexData.get(pub.doi.toLowerCase())
       if (meta) {
         if (meta.authors.length > 0) pub.authors = meta.authors
         if (meta.journal) pub.journal = meta.journal
-        if (meta.type) {
-          if (meta.type === 'journal-article' && pub.orcidType === 'journal-article') {
-            pub.type = 'journal-article'
-          }
-        }
-      }
-    }
-  }
-
-  // Stage 3: Resolve DOI→PMID for papers missing PMID, then fetch pub types
-  const pubsWithoutPmid = allPubs.filter(p => !p.pmid && p.doi)
-  if (pubsWithoutPmid.length > 0) {
-    onProgress?.({
-      stage: 'pubmed',
-      message: `Looking up PMIDs for ${pubsWithoutPmid.length} papers...`,
-      percent: 86,
-    })
-
-    const doiToPmid = await batchLookupPmidsByDoi(
-      pubsWithoutPmid.map(p => p.doi!),
-      (done, total) => {
-        onProgress?.({
-          stage: 'pubmed',
-          message: `Looking up PMIDs (${done}/${total})...`,
-          percent: 86 + Math.round((done / total) * 4),
-        })
-      },
-    )
-
-    // Assign resolved PMIDs
-    for (const pub of allPubs) {
-      if (!pub.pmid && pub.doi) {
-        const pmid = doiToPmid.get(pub.doi.toLowerCase())
-        if (pmid) pub.pmid = pmid
-      }
-    }
-  }
-
-  // Fetch publication types from PubMed for all papers with PMIDs
-  const pmidsToFetch = allPubs.filter(p => p.pmid).map(p => p.pmid!)
-  if (pmidsToFetch.length > 0) {
-    onProgress?.({
-      stage: 'pubmed',
-      message: `Fetching publication types from PubMed (${pmidsToFetch.length})...`,
-      percent: 91,
-    })
-
-    const pubmedData = await batchFetchPubMedTypes(pmidsToFetch)
-    for (const pub of allPubs) {
-      if (pub.pmid) {
-        const info = pubmedData.get(pub.pmid)
-        if (info) {
-          pub.pubmedCategory = pubmedTypeToCategory(info.pubTypes)
-        }
+        if (meta.pmid && !pub.pmid) pub.pmid = meta.pmid
+        pub.pubmedCategory = openAlexTypeToCategory(meta.type)
       }
     }
   }
