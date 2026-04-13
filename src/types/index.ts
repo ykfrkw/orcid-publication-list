@@ -15,6 +15,7 @@ export interface Publication {
   type: string
   orcidType: string
   openAlexType?: string   // from OpenAlex: article, review, letter, editorial, preprint, etc.
+  peerReviewApproved?: boolean  // for F1000Research/Wellcome: true if referee-approved
   sourceOrcidIds: string[]
 }
 
@@ -56,15 +57,16 @@ function isFromPreprintServer(journal: string): boolean {
   return PREPRINT_SERVERS.some(s => j.includes(s))
 }
 
-// Journals that are peer-reviewed despite OpenAlex marking as "preprint"
-const PEER_REVIEWED_JOURNALS = [
+// Open peer-review journals (F1000Research, Wellcome Open Research, etc.)
+// These need Crossref referee-status check to determine approved vs preprint
+const OPEN_REVIEW_JOURNALS = [
   'f1000research', 'f1000 research', 'wellcome open research',
   'gates open research', 'hrb open research',
 ]
 
-function isPeerReviewedJournal(journal: string): boolean {
+export function isOpenReviewJournal(journal: string): boolean {
   const j = journal.toLowerCase()
-  return PEER_REVIEWED_JOURNALS.some(s => j.includes(s))
+  return OPEN_REVIEW_JOURNALS.some(s => j.includes(s))
 }
 
 export function categorizeWork(pub: Publication): PublicationCategory {
@@ -74,21 +76,24 @@ export function categorizeWork(pub: Publication): PublicationCategory {
 
   // 1. Check preprint servers first (regardless of OpenAlex type)
   if (isFromPreprintServer(journal)) return 'preprint'
-  if (orcidType === 'preprint' && !isPeerReviewedJournal(journal)) return 'preprint'
+  if (orcidType === 'preprint' && !isOpenReviewJournal(journal)) return 'preprint'
 
-  // 2. OpenAlex type is authoritative when available
+  // 2. Open peer-review journals: approved → original, otherwise → preprint
+  if (isOpenReviewJournal(journal)) {
+    return pub.peerReviewApproved ? 'original' : 'preprint'
+  }
+
+  // 3. OpenAlex type is authoritative when available
   if (oaType) {
     if (oaType === 'letter') return 'letter'
     if (oaType === 'editorial') return 'editorial'
     // article + review → both go to 'original'
     if (oaType === 'article' || oaType === 'review') return 'original'
-    // preprint in OpenAlex but from a peer-reviewed journal → original
-    if (oaType === 'preprint' && isPeerReviewedJournal(journal)) return 'original'
     if (oaType === 'preprint') return 'preprint'
     if (oaType === 'erratum' || oaType === 'paratext') return 'other'
   }
 
-  // 3. Fallback to ORCID type
+  // 4. Fallback to ORCID type
   if (orcidType === 'journal-article' || orcidType === 'review') return 'original'
   if (orcidType.includes('letter')) return 'letter'
   if (orcidType.includes('editorial') || orcidType.includes('comment')) return 'editorial'

@@ -1,7 +1,8 @@
 import type { OrcidEntry, Publication, PublicationCategory, YearRange, SortOrder } from '@/types'
-import { categorizeWork } from '@/types'
+import { categorizeWork, isOpenReviewJournal } from '@/types'
 import { fetchOrcidWorks, fetchOrcidName } from './orcid'
 import { batchFetchOpenAlex } from './openalex'
+import { batchCheckPeerReview } from './crossref-review'
 
 export interface FetchProgress {
   stage: 'orcid' | 'openalex' | 'done'
@@ -124,6 +125,23 @@ export async function runPipeline(
         if (meta.journal) pub.journal = meta.journal
         if (meta.pmid && !pub.pmid) pub.pmid = meta.pmid
         pub.openAlexType = meta.type
+      }
+    }
+  }
+
+  // Stage 3: Check peer review status for F1000/Wellcome papers
+  const openReviewPubs = allPubs.filter(p => p.doi && isOpenReviewJournal(p.journal))
+  if (openReviewPubs.length > 0) {
+    onProgress?.({
+      stage: 'openalex',
+      message: `Checking peer review status for ${openReviewPubs.length} open-review papers...`,
+      percent: 93,
+    })
+
+    const reviewStatus = await batchCheckPeerReview(openReviewPubs.map(p => p.doi!))
+    for (const pub of openReviewPubs) {
+      if (pub.doi) {
+        pub.peerReviewApproved = reviewStatus.get(pub.doi.toLowerCase()) ?? false
       }
     }
   }
