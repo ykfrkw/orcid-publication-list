@@ -71,14 +71,31 @@ export function PublicationList({ result, style }: PublicationListProps) {
     const plainText = textLines.join('\n')
 
     // Write both HTML and plain text to clipboard
-    const blob = new Blob([html], { type: 'text/html' })
-    const textBlob = new Blob([plainText], { type: 'text/plain' })
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        'text/html': blob,
-        'text/plain': textBlob,
-      }),
-    ])
+    try {
+      const blob = new Blob([html], { type: 'text/html' })
+      const textBlob = new Blob([plainText], { type: 'text/plain' })
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': blob,
+          'text/plain': textBlob,
+        }),
+      ])
+    } catch {
+      // Fallback for iframe or restricted contexts: copy rich text via execCommand
+      const tempDiv = document.createElement('div')
+      tempDiv.innerHTML = html
+      tempDiv.style.position = 'fixed'
+      tempDiv.style.left = '-9999px'
+      document.body.appendChild(tempDiv)
+      const range = document.createRange()
+      range.selectNodeContents(tempDiv)
+      const sel = window.getSelection()
+      sel?.removeAllRanges()
+      sel?.addRange(range)
+      document.execCommand('copy')
+      sel?.removeAllRanges()
+      document.body.removeChild(tempDiv)
+    }
 
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
