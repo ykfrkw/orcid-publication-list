@@ -14,11 +14,11 @@ export interface Publication {
   pmid?: string
   type: string
   orcidType: string
-  pubmedCategory?: string  // from PubMed: 'original' | 'review' | 'letter' | 'editorial' | 'unknown'
+  openAlexType?: string   // from OpenAlex: article, review, letter, editorial, preprint, etc.
   sourceOrcidIds: string[]
 }
 
-export type PublicationCategory = 'original' | 'review' | 'letter' | 'editorial' | 'other'
+export type PublicationCategory = 'original' | 'preprint' | 'letter' | 'editorial' | 'other'
 
 export type CitationStyle = 'vancouver' | 'apa' | 'harvard' | 'chicago' | 'nature'
 
@@ -38,28 +38,64 @@ export const CITATION_STYLES: { value: CitationStyle; label: string }[] = [
 ]
 
 export const CATEGORY_LABELS: Record<PublicationCategory, string> = {
-  original: 'Original Articles',
-  review: 'Reviews',
+  original: 'Original Articles & Reviews',
+  preprint: 'Preprints',
   letter: 'Letters',
   editorial: 'Editorials',
   other: 'Other Publication Types',
 }
 
+// Preprint servers — journal names that indicate a preprint
+const PREPRINT_SERVERS = [
+  'medrxiv', 'biorxiv', 'arxiv', 'ssrn', 'chemrxiv', 'psyarxiv',
+  'preprints.org', 'research square', 'authorea',
+]
+
+function isFromPreprintServer(journal: string): boolean {
+  const j = journal.toLowerCase()
+  return PREPRINT_SERVERS.some(s => j.includes(s))
+}
+
+// Journals that are peer-reviewed despite OpenAlex marking as "preprint"
+const PEER_REVIEWED_JOURNALS = [
+  'f1000research', 'f1000 research', 'wellcome open research',
+  'gates open research', 'hrb open research',
+]
+
+function isPeerReviewedJournal(journal: string): boolean {
+  const j = journal.toLowerCase()
+  return PEER_REVIEWED_JOURNALS.some(s => j.includes(s))
+}
+
 export function categorizeWork(pub: Publication): PublicationCategory {
-  // PubMed category is most reliable when available
-  if (pub.pubmedCategory && pub.pubmedCategory !== 'unknown') {
-    return pub.pubmedCategory as PublicationCategory
+  const journal = pub.journal ?? ''
+  const oaType = pub.openAlexType?.toLowerCase() ?? ''
+  const orcidType = pub.orcidType.toLowerCase()
+
+  // 1. Check preprint servers first (regardless of OpenAlex type)
+  if (isFromPreprintServer(journal)) return 'preprint'
+  if (orcidType === 'preprint' && !isPeerReviewedJournal(journal)) return 'preprint'
+
+  // 2. OpenAlex type is authoritative when available
+  if (oaType) {
+    if (oaType === 'letter') return 'letter'
+    if (oaType === 'editorial') return 'editorial'
+    // article + review → both go to 'original'
+    if (oaType === 'article' || oaType === 'review') return 'original'
+    // preprint in OpenAlex but from a peer-reviewed journal → original
+    if (oaType === 'preprint' && isPeerReviewedJournal(journal)) return 'original'
+    if (oaType === 'preprint') return 'preprint'
+    if (oaType === 'erratum' || oaType === 'paratext') return 'other'
   }
 
-  // Fallback to ORCID type
-  const t = pub.orcidType.toLowerCase()
-  if (t === 'journal-article') return 'original'
-  if (t === 'review') return 'review'
-  if (t.includes('letter')) return 'letter'
-  if (t.includes('editorial') || t.includes('comment')) return 'editorial'
-  if (t.includes('book') || t.includes('chapter') || t.includes('conference')
-    || t.includes('abstract') || t.includes('preprint') || t.includes('report')
-    || t.includes('dissertation') || t.includes('working-paper')
-    || t.includes('other')) return 'other'
+  // 3. Fallback to ORCID type
+  if (orcidType === 'journal-article' || orcidType === 'review') return 'original'
+  if (orcidType.includes('letter')) return 'letter'
+  if (orcidType.includes('editorial') || orcidType.includes('comment')) return 'editorial'
+  if (orcidType.includes('book') || orcidType.includes('chapter') || orcidType.includes('conference')
+    || orcidType.includes('abstract') || orcidType.includes('report')
+    || orcidType.includes('dissertation') || orcidType.includes('working-paper')
+    || orcidType.includes('other')) return 'other'
+
   return 'original'
 }

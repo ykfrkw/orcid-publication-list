@@ -5,22 +5,21 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Copy, Check } from 'lucide-react'
 import type { PipelineResult } from '@/api/pipeline'
-import type { CitationStyle, PublicationCategory, OrcidEntry } from '@/types'
+import type { CitationStyle, PublicationCategory } from '@/types'
 import { CATEGORY_LABELS } from '@/types'
 import { formatCitation, formatPlainText } from '@/api/formatter'
 
 interface PublicationListProps {
   result: PipelineResult
   style: CitationStyle
-  entries: OrcidEntry[]
 }
 
-export function PublicationList({ result, style, entries }: PublicationListProps) {
+export function PublicationList({ result, style }: PublicationListProps) {
   const [copied, setCopied] = useState(false)
 
-  const boldNames = entries.map(e => e.displayName).filter(n => n && !n.match(/^\d{4}-/))
+  const boldNames = result.boldNames
 
-  const categories: PublicationCategory[] = ['original', 'review', 'letter', 'editorial', 'other']
+  const categories: PublicationCategory[] = ['original', 'preprint', 'letter', 'editorial', 'other']
   const nonEmptyCategories = categories.filter(cat => result.categorized[cat].length > 0)
 
   const handleCopy = async () => {

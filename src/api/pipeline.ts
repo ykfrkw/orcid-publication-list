@@ -1,7 +1,7 @@
 import type { OrcidEntry, Publication, PublicationCategory, YearRange, SortOrder } from '@/types'
 import { categorizeWork } from '@/types'
-import { fetchOrcidWorks } from './orcid'
-import { batchFetchOpenAlex, openAlexTypeToCategory } from './openalex'
+import { fetchOrcidWorks, fetchOrcidName } from './orcid'
+import { batchFetchOpenAlex } from './openalex'
 
 export interface FetchProgress {
   stage: 'orcid' | 'openalex' | 'done'
@@ -12,6 +12,7 @@ export interface FetchProgress {
 export interface PipelineResult {
   publications: Publication[]
   categorized: Record<PublicationCategory, Publication[]>
+  boldNames: string[]  // names resolved from ORCID profiles
   errors: string[]
 }
 
@@ -59,9 +60,10 @@ export async function runPipeline(
   onProgress?: (p: FetchProgress) => void,
 ): Promise<PipelineResult> {
   const errors: string[] = []
+  const boldNames: string[] = []
   let allPubs: Publication[] = []
 
-  // Stage 1: Fetch from ORCID
+  // Stage 1: Fetch from ORCID (works + profile names)
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]
     onProgress?.({
@@ -70,8 +72,16 @@ export async function runPipeline(
       percent: Math.round(((i + 1) / entries.length) * 30),
     })
     try {
-      const pubs = await fetchOrcidWorks(entry.orcidId)
+      const [pubs, orcidName] = await Promise.all([
+        fetchOrcidWorks(entry.orcidId),
+        fetchOrcidName(entry.orcidId),
+      ])
       allPubs.push(...pubs)
+      // Collect bold names: ORCID profile name + user-provided displayName
+      if (orcidName) boldNames.push(orcidName)
+      if (entry.displayName && !entry.displayName.match(/^\d{4}-/)) {
+        boldNames.push(entry.displayName)
+      }
     } catch (e) {
       errors.push(`Failed to fetch ${entry.orcidId} (${entry.displayName}): ${e}`)
     }
@@ -113,7 +123,7 @@ export async function runPipeline(
         if (meta.authors.length > 0) pub.authors = meta.authors
         if (meta.journal) pub.journal = meta.journal
         if (meta.pmid && !pub.pmid) pub.pmid = meta.pmid
-        pub.pubmedCategory = openAlexTypeToCategory(meta.type)
+        pub.openAlexType = meta.type
       }
     }
   }
@@ -139,7 +149,7 @@ export async function runPipeline(
   // Categorize
   const categorized: Record<PublicationCategory, Publication[]> = {
     original: [],
-    review: [],
+    preprint: [],
     letter: [],
     editorial: [],
     other: [],
@@ -155,5 +165,5 @@ export async function runPipeline(
     percent: 100,
   })
 
-  return { publications: allPubs, categorized, errors }
+  return { publications: allPubs, categorized, boldNames, errors }
 }

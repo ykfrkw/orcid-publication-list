@@ -10,7 +10,6 @@ function App() {
   const [progress, setProgress] = useState<FetchProgress | null>(null)
   const [result, setResult] = useState<PipelineResult | null>(null)
   const [style, setStyle] = useState<CitationStyle>('vancouver')
-  const [entries, setEntries] = useState<OrcidEntry[]>([])
 
   const handleSubmit = async (
     newEntries: OrcidEntry[],
@@ -21,7 +20,6 @@ function App() {
     setIsLoading(true)
     setResult(null)
     setStyle(citStyle)
-    setEntries(newEntries)
     setProgress({ stage: 'orcid', message: 'Starting...', percent: 0 })
 
     try {
@@ -30,7 +28,8 @@ function App() {
     } catch (e) {
       setResult({
         publications: [],
-        categorized: { original: [], review: [], letter: [], editorial: [], other: [] },
+        categorized: { original: [], preprint: [], letter: [], editorial: [], other: [] },
+        boldNames: [],
         errors: [`Pipeline failed: ${e}`],
       })
     } finally {
@@ -51,7 +50,7 @@ function App() {
         )}
 
         {result && !isLoading && (
-          <PublicationList result={result} style={style} entries={entries} />
+          <PublicationList result={result} style={style} />
         )}
       </div>
     </div>

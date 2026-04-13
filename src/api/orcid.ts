@@ -24,6 +24,29 @@ interface OrcidWorksResponse {
   }>
 }
 
+/**
+ * Fetch the registered name from an ORCID profile.
+ */
+export async function fetchOrcidName(orcidId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://pub.orcid.org/v3.0/${orcidId}/person`, {
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const given: string = data?.name?.['given-names']?.value ?? ''
+    const family: string = data?.name?.['family-name']?.value ?? ''
+    if (family && given) {
+      // Capitalize properly: "YUKI" → "Yuki", "FURUKAWA" → "Furukawa"
+      const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+      return `${cap(family)} ${cap(given)}`
+    }
+    return family || given || null
+  } catch {
+    return null
+  }
+}
+
 export async function fetchOrcidWorks(orcidId: string): Promise<Publication[]> {
   const res = await fetch(`https://pub.orcid.org/v3.0/${orcidId}/works`, {
     headers: { Accept: 'application/json' },
