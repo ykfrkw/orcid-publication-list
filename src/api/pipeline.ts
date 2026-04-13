@@ -2,7 +2,7 @@ import type { OrcidEntry, Publication, PublicationCategory, YearRange, SortOrder
 import { categorizeWork } from '@/types'
 import { fetchOrcidWorks } from './orcid'
 import { batchFetchCrossref } from './crossref'
-import { batchFetchPubMedTypes, pubmedTypeToCategory } from './pubmed'
+import { batchFetchPubMedTypes, batchLookupPmidsByDoi, pubmedTypeToCategory } from './pubmed'
 
 export interface FetchProgress {
   stage: 'orcid' | 'crossref' | 'pubmed' | 'done'
@@ -122,13 +122,42 @@ export async function runPipeline(
     }
   }
 
-  // Stage 3: Enrich via PubMed (publication types)
+  // Stage 3: Resolve DOI→PMID for papers missing PMID, then fetch pub types
+  const pubsWithoutPmid = allPubs.filter(p => !p.pmid && p.doi)
+  if (pubsWithoutPmid.length > 0) {
+    onProgress?.({
+      stage: 'pubmed',
+      message: `Looking up PMIDs for ${pubsWithoutPmid.length} papers...`,
+      percent: 86,
+    })
+
+    const doiToPmid = await batchLookupPmidsByDoi(
+      pubsWithoutPmid.map(p => p.doi!),
+      (done, total) => {
+        onProgress?.({
+          stage: 'pubmed',
+          message: `Looking up PMIDs (${done}/${total})...`,
+          percent: 86 + Math.round((done / total) * 4),
+        })
+      },
+    )
+
+    // Assign resolved PMIDs
+    for (const pub of allPubs) {
+      if (!pub.pmid && pub.doi) {
+        const pmid = doiToPmid.get(pub.doi.toLowerCase())
+        if (pmid) pub.pmid = pmid
+      }
+    }
+  }
+
+  // Fetch publication types from PubMed for all papers with PMIDs
   const pmidsToFetch = allPubs.filter(p => p.pmid).map(p => p.pmid!)
   if (pmidsToFetch.length > 0) {
     onProgress?.({
       stage: 'pubmed',
       message: `Fetching publication types from PubMed (${pmidsToFetch.length})...`,
-      percent: 90,
+      percent: 91,
     })
 
     const pubmedData = await batchFetchPubMedTypes(pmidsToFetch)
