@@ -1,4 +1,4 @@
-import type { OrcidEntry, Publication, PublicationCategory } from '@/types'
+import type { OrcidEntry, Publication, PublicationCategory, YearRange, SortOrder } from '@/types'
 import { categorizeWork } from '@/types'
 import { fetchOrcidWorks } from './orcid'
 import { batchFetchCrossref } from './crossref'
@@ -54,7 +54,8 @@ function deduplicatePublications(pubs: Publication[]): Publication[] {
 
 export async function runPipeline(
   entries: OrcidEntry[],
-  yearFilter?: number,
+  yearRange?: YearRange,
+  sortOrder: SortOrder = 'date',
   onProgress?: (p: FetchProgress) => void,
 ): Promise<PipelineResult> {
   const errors: string[] = []
@@ -76,9 +77,13 @@ export async function runPipeline(
     }
   }
 
-  // Filter by year
-  if (yearFilter) {
-    allPubs = allPubs.filter(p => p.year === yearFilter)
+  // Filter by year range
+  if (yearRange?.from || yearRange?.to) {
+    allPubs = allPubs.filter(p => {
+      if (yearRange.from && p.year < yearRange.from) return false
+      if (yearRange.to && p.year > yearRange.to) return false
+      return true
+    })
   }
 
   // Deduplicate
@@ -116,14 +121,23 @@ export async function runPipeline(
     }
   }
 
-  // Sort by year desc, then by first author
-  allPubs.sort((a, b) => {
-    if (b.year !== a.year) return b.year - a.year
-    const aMonth = a.month ?? 0
-    const bMonth = b.month ?? 0
-    if (bMonth !== aMonth) return bMonth - aMonth
-    return (a.authors[0] ?? a.title).localeCompare(b.authors[0] ?? b.title)
-  })
+  // Sort
+  if (sortOrder === 'first-author') {
+    allPubs.sort((a, b) => {
+      const aAuthor = (a.authors[0] ?? a.title).toLowerCase()
+      const bAuthor = (b.authors[0] ?? b.title).toLowerCase()
+      if (aAuthor !== bAuthor) return aAuthor.localeCompare(bAuthor)
+      return b.year - a.year
+    })
+  } else {
+    allPubs.sort((a, b) => {
+      if (b.year !== a.year) return b.year - a.year
+      const aMonth = a.month ?? 0
+      const bMonth = b.month ?? 0
+      if (bMonth !== aMonth) return bMonth - aMonth
+      return (a.authors[0] ?? a.title).localeCompare(b.authors[0] ?? b.title)
+    })
+  }
 
   // Categorize
   const categorized: Record<PublicationCategory, Publication[]> = {

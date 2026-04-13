@@ -21,6 +21,13 @@ export type PublicationCategory = 'original' | 'review' | 'letter' | 'editorial'
 
 export type CitationStyle = 'vancouver' | 'apa' | 'harvard' | 'chicago' | 'nature'
 
+export type SortOrder = 'date' | 'first-author'
+
+export interface YearRange {
+  from?: number
+  to?: number
+}
+
 export const CITATION_STYLES: { value: CitationStyle; label: string }[] = [
   { value: 'vancouver', label: 'Vancouver' },
   { value: 'apa', label: 'APA 7th' },

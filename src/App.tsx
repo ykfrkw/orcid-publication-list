@@ -3,7 +3,7 @@ import { OrcidInput } from '@/components/OrcidInput'
 import { PublicationList } from '@/components/PublicationList'
 import { Progress } from '@/components/ui/progress'
 import { runPipeline, type FetchProgress, type PipelineResult } from '@/api/pipeline'
-import type { CitationStyle, OrcidEntry } from '@/types'
+import type { CitationStyle, OrcidEntry, YearRange, SortOrder } from '@/types'
 
 function App() {
   const [isLoading, setIsLoading] = useState(false)
@@ -12,7 +12,12 @@ function App() {
   const [style, setStyle] = useState<CitationStyle>('vancouver')
   const [entries, setEntries] = useState<OrcidEntry[]>([])
 
-  const handleSubmit = async (newEntries: OrcidEntry[], year: number | undefined, citStyle: CitationStyle) => {
+  const handleSubmit = async (
+    newEntries: OrcidEntry[],
+    yearRange: YearRange | undefined,
+    citStyle: CitationStyle,
+    sortOrder: SortOrder,
+  ) => {
     setIsLoading(true)
     setResult(null)
     setStyle(citStyle)
@@ -20,7 +25,7 @@ function App() {
     setProgress({ stage: 'orcid', message: 'Starting...', percent: 0 })
 
     try {
-      const pipelineResult = await runPipeline(newEntries, year, setProgress)
+      const pipelineResult = await runPipeline(newEntries, yearRange, sortOrder, setProgress)
       setResult(pipelineResult)
     } catch (e) {
       setResult({

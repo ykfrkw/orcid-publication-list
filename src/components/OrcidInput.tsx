@@ -8,22 +8,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { X } from 'lucide-react'
 import { parseOrcidInput } from '@/api/orcid-parser'
-import { CITATION_STYLES, type CitationStyle, type OrcidEntry } from '@/types'
+import { CITATION_STYLES, type CitationStyle, type OrcidEntry, type YearRange, type SortOrder } from '@/types'
 
 interface OrcidInputProps {
-  onSubmit: (entries: OrcidEntry[], year: number | undefined, style: CitationStyle) => void
+  onSubmit: (entries: OrcidEntry[], yearRange: YearRange | undefined, style: CitationStyle, sort: SortOrder) => void
   isLoading: boolean
 }
 
 export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
   const [text, setText] = useState('')
   const [entries, setEntries] = useState<OrcidEntry[]>([])
-  const [year, setYear] = useState(new Date().getFullYear().toString())
+  const [yearFrom, setYearFrom] = useState('')
+  const [yearTo, setYearTo] = useState('')
   const [style, setStyle] = useState<CitationStyle>('vancouver')
+  const [sort, setSort] = useState<SortOrder>('date')
 
   const handleParse = () => {
     const parsed = parseOrcidInput(text)
-    // Merge with existing, avoiding duplicates
     setEntries(prev => {
       const existing = new Set(prev.map(e => e.orcidId))
       const newEntries = parsed.filter(e => !existing.has(e.orcidId))
@@ -44,8 +45,10 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
 
   const handleSubmit = () => {
     if (entries.length === 0) return
-    const yearNum = year ? parseInt(year) : undefined
-    onSubmit(entries, yearNum && !isNaN(yearNum) ? yearNum : undefined, style)
+    const from = yearFrom ? parseInt(yearFrom) : undefined
+    const to = yearTo ? parseInt(yearTo) : undefined
+    const yearRange = (from || to) ? { from, to } : undefined
+    onSubmit(entries, yearRange, style, sort)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -67,17 +70,14 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="orcid-input">ORCID IDs</Label>
-          <div className="flex gap-2">
-            <Textarea
-              id="orcid-input"
-              placeholder={`Paste ORCID IDs here (one per line, or comma-separated):\n0000-0002-4573-7732\nStefan Leucht\thttps://orcid.org/0000-0002-4573-7732\nJohn Doe, 0000-0001-2345-6789`}
-              value={text}
-              onChange={e => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              rows={4}
-              className="flex-1"
-            />
-          </div>
+          <Textarea
+            id="orcid-input"
+            placeholder={`Paste ORCID IDs here (one per line, or comma-separated):\nYuki Furukawa\thttps://orcid.org/0000-0003-1317-0220\n0000-0002-4573-7732`}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={4}
+          />
           <Button onClick={handleParse} variant="secondary" size="sm" disabled={!text.trim()}>
             Add IDs
           </Button>
@@ -109,16 +109,28 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
           </div>
         )}
 
-        <div className="flex flex-wrap gap-4 items-end">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 items-end">
           <div className="space-y-2">
-            <Label htmlFor="year-filter">Year</Label>
+            <Label htmlFor="year-from">Year From</Label>
             <Input
-              id="year-filter"
+              id="year-from"
               type="number"
-              value={year}
-              onChange={e => setYear(e.target.value)}
-              placeholder="All years"
-              className="w-28"
+              value={yearFrom}
+              onChange={e => setYearFrom(e.target.value)}
+              placeholder="e.g. 2020"
+              min={1900}
+              max={2100}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="year-to">Year To</Label>
+            <Input
+              id="year-to"
+              type="number"
+              value={yearTo}
+              onChange={e => setYearTo(e.target.value)}
+              placeholder="e.g. 2025"
               min={1900}
               max={2100}
             />
@@ -127,7 +139,7 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
           <div className="space-y-2">
             <Label>Citation Style</Label>
             <Select value={style} onValueChange={v => setStyle(v as CitationStyle)}>
-              <SelectTrigger className="w-44">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -138,10 +150,23 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
             </Select>
           </div>
 
-          <Button onClick={handleSubmit} disabled={entries.length === 0 || isLoading}>
-            {isLoading ? 'Fetching...' : 'Generate List'}
-          </Button>
+          <div className="space-y-2">
+            <Label>Sort By</Label>
+            <Select value={sort} onValueChange={v => setSort(v as SortOrder)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date">Publication Date</SelectItem>
+                <SelectItem value="first-author">First Author</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+        <Button onClick={handleSubmit} disabled={entries.length === 0 || isLoading} className="w-full sm:w-auto">
+          {isLoading ? 'Fetching...' : 'Generate List'}
+        </Button>
       </CardContent>
     </Card>
   )

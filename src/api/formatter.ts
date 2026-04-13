@@ -12,55 +12,69 @@ function authorListForStyle(
     for (const bn of boldNames) {
       const parts = bn.toLowerCase().split(/\s+/)
       if (parts.every(p => nameLower.includes(p))) {
-        return `<strong>${name}</strong>`
+        return `<strong><u>${name}</u></strong>`
       }
     }
     return name
   }
 
+  // Apply boldify to ALL authors first, then truncate per style.
+  // This ensures highlighted authors are never lost.
+  const allFormatted = authors.map(boldify)
+  const isHighlighted = (s: string) => s.startsWith('<strong>')
+
+  // If truncation would hide a highlighted author, include them explicitly.
+  const truncateWithHighlighted = (visible: string[], rest: string[], suffix: string): string => {
+    const hiddenHighlighted = rest.filter(isHighlighted)
+    if (hiddenHighlighted.length === 0) {
+      return visible.join(', ') + suffix
+    }
+    return visible.join(', ') + ', ...' + hiddenHighlighted.join(', ') + suffix
+  }
+
   switch (style) {
     case 'vancouver': {
-      // Vancouver: up to 6 authors, then et al.
-      const formatted = authors.map(boldify)
-      if (formatted.length > 6) {
-        return formatted.slice(0, 6).join(', ') + ', et al'
+      if (allFormatted.length > 6) {
+        return truncateWithHighlighted(allFormatted.slice(0, 6), allFormatted.slice(6), ', et al')
       }
-      return formatted.join(', ')
+      return allFormatted.join(', ')
     }
     case 'apa': {
-      // APA 7th: up to 20 authors
-      const formatted = authors.map(boldify)
-      if (formatted.length > 20) {
-        return formatted.slice(0, 19).join(', ') + ', ... ' + formatted[formatted.length - 1]
+      if (allFormatted.length > 20) {
+        const visible = allFormatted.slice(0, 19)
+        const last = allFormatted[allFormatted.length - 1]
+        const rest = allFormatted.slice(19, -1)
+        const hiddenHighlighted = rest.filter(isHighlighted)
+        if (hiddenHighlighted.length === 0) {
+          return visible.join(', ') + ', ... ' + last
+        }
+        return visible.join(', ') + ', ...' + hiddenHighlighted.join(', ') + ', ... ' + last
       }
-      if (formatted.length === 1) return formatted[0]
-      return formatted.slice(0, -1).join(', ') + ', & ' + formatted[formatted.length - 1]
+      if (allFormatted.length === 1) return allFormatted[0]
+      return allFormatted.slice(0, -1).join(', ') + ', & ' + allFormatted[allFormatted.length - 1]
     }
     case 'harvard': {
-      const formatted = authors.map(boldify)
-      if (formatted.length > 3) {
-        return formatted[0] + ' et al.'
+      if (allFormatted.length > 3) {
+        return truncateWithHighlighted(allFormatted.slice(0, 1), allFormatted.slice(1), ' et al.')
       }
-      if (formatted.length === 1) return formatted[0]
-      return formatted.slice(0, -1).join(', ') + ' and ' + formatted[formatted.length - 1]
+      if (allFormatted.length === 1) return allFormatted[0]
+      return allFormatted.slice(0, -1).join(', ') + ' and ' + allFormatted[allFormatted.length - 1]
     }
     case 'chicago': {
-      const formatted = authors.map(boldify)
-      if (formatted.length > 10) {
-        return formatted.slice(0, 7).join(', ') + ', et al.'
+      if (allFormatted.length > 10) {
+        return truncateWithHighlighted(allFormatted.slice(0, 7), allFormatted.slice(7), ', et al.')
       }
-      if (formatted.length === 1) return formatted[0]
-      return formatted.slice(0, -1).join(', ') + ', and ' + formatted[formatted.length - 1]
+      if (allFormatted.length === 1) return allFormatted[0]
+      return allFormatted.slice(0, -1).join(', ') + ', and ' + allFormatted[allFormatted.length - 1]
     }
     case 'nature': {
-      const formatted = authors.map(boldify)
-      if (formatted.length > 5) {
-        return formatted.slice(0, 5).join(', ') + ' et al.'
+      if (allFormatted.length > 5) {
+        return truncateWithHighlighted(allFormatted.slice(0, 5), allFormatted.slice(5), ' et al.')
       }
-      return formatted.join(', ')
+      return allFormatted.join(', ')
     }
     default:
-      return authors.map(boldify).join(', ')
+      return allFormatted.join(', ')
   }
 }
 
@@ -147,10 +161,9 @@ export function formatPlainText(
   // Same as formatCitation but without HTML
   const html = formatCitation(pub, style, index, boldNames)
   return html
-    .replace(/<strong>/g, '')
-    .replace(/<\/strong>/g, '')
-    .replace(/<em>/g, '')
-    .replace(/<\/em>/g, '')
+    .replace(/<\/?strong>/g, '')
+    .replace(/<\/?u>/g, '')
+    .replace(/<\/?em>/g, '')
     .replace(/<a[^>]*>/g, '')
     .replace(/<\/a>/g, '')
 }
