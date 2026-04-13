@@ -23,31 +23,63 @@ export function PublicationList({ result, style }: PublicationListProps) {
   const nonEmptyCategories = categories.filter(cat => result.categorized[cat].length > 0)
 
   const handleCopy = async () => {
-    const lines: string[] = []
+    // Build HTML (rich text) — <ol><li> for auto-renumbering in Word/Docs
+    const htmlParts: string[] = []
 
-    // Member list header
     if (result.members.length > 0) {
-      lines.push('Members')
-      lines.push('─'.repeat(40))
+      htmlParts.push('<p><b>Members</b></p><ul>')
       for (const m of result.members) {
         const name = m.orcidName ?? m.displayName
-        lines.push(`${name} (https://orcid.org/${m.orcidId})`)
+        htmlParts.push(`<li>${name} (<a href="https://orcid.org/${m.orcidId}">${m.orcidId}</a>)</li>`)
       }
-      lines.push('')
+      htmlParts.push('</ul>')
     }
 
-    // Publications as numbered list per category
     for (const cat of nonEmptyCategories) {
       const pubs = result.categorized[cat]
-      lines.push(`${CATEGORY_LABELS[cat]} (${pubs.length})`)
-      lines.push('─'.repeat(40))
-      for (let i = 0; i < pubs.length; i++) {
-        lines.push(`${i + 1}. ${formatPlainText(pubs[i], style, i + 1, boldNames)}`)
+      htmlParts.push(`<p><b>${CATEGORY_LABELS[cat]} (${pubs.length})</b></p><ol>`)
+      for (const pub of pubs) {
+        const citation = formatCitation(pub, style, 0, boldNames)
+        const pmidHtml = pub.pmid
+          ? ` <span style="font-size:smaller">PMID: <a href="https://pubmed.ncbi.nlm.nih.gov/${pub.pmid}">${pub.pmid}</a></span>`
+          : ''
+        htmlParts.push(`<li>${citation}${pmidHtml}</li>`)
       }
-      lines.push('')
+      htmlParts.push('</ol>')
     }
 
-    await navigator.clipboard.writeText(lines.join('\n'))
+    const html = htmlParts.join('')
+
+    // Build plain text fallback
+    const textLines: string[] = []
+    if (result.members.length > 0) {
+      textLines.push('Members')
+      for (const m of result.members) {
+        const name = m.orcidName ?? m.displayName
+        textLines.push(`${name} (https://orcid.org/${m.orcidId})`)
+      }
+      textLines.push('')
+    }
+    for (const cat of nonEmptyCategories) {
+      const pubs = result.categorized[cat]
+      textLines.push(`${CATEGORY_LABELS[cat]} (${pubs.length})`)
+      for (let i = 0; i < pubs.length; i++) {
+        textLines.push(`${i + 1}. ${formatPlainText(pubs[i], style, i + 1, boldNames)}`)
+      }
+      textLines.push('')
+    }
+    const plainText = textLines.join('\n')
+
+    // Write both HTML and plain text to clipboard
+    const blob = new Blob([html], { type: 'text/html' })
+    const textBlob = new Blob([plainText], { type: 'text/plain' })
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': blob,
+        'text/plain': textBlob,
+      }),
+    ])
+
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
