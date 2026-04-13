@@ -81,7 +81,7 @@ function authorListForStyle(
 export function formatCitation(
   pub: Publication,
   style: CitationStyle,
-  index: number,
+  _index: number,
   boldNames: string[],
 ): string {
   const authorStr = authorListForStyle(pub.authors, style, boldNames)
@@ -92,9 +92,8 @@ export function formatCitation(
 
   switch (style) {
     case 'vancouver': {
-      // N. Authors. Title. Journal. Year;Volume(Issue):Pages. doi:
+      // Authors. Title. Journal. Year. doi:
       const parts = [
-        `${index}.`,
         authorStr ? `${authorStr}.` : '',
         `${title}.`,
         journal ? `<em>${journal}</em>.` : '',

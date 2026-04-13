@@ -30,6 +30,7 @@ function App() {
         publications: [],
         categorized: { original: [], preprint: [], letter: [], editorial: [], other: [] },
         boldNames: [],
+        members: [],
         errors: [`Pipeline failed: ${e}`],
       })
     } finally {

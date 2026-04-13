@@ -24,15 +24,25 @@ export function PublicationList({ result, style }: PublicationListProps) {
 
   const handleCopy = async () => {
     const lines: string[] = []
-    let globalIndex = 1
 
+    // Member list header
+    if (result.members.length > 0) {
+      lines.push('Members')
+      lines.push('─'.repeat(40))
+      for (const m of result.members) {
+        const name = m.orcidName ?? m.displayName
+        lines.push(`${name} (https://orcid.org/${m.orcidId})`)
+      }
+      lines.push('')
+    }
+
+    // Publications as numbered list per category
     for (const cat of nonEmptyCategories) {
       const pubs = result.categorized[cat]
-      lines.push(`\n${CATEGORY_LABELS[cat]} (${pubs.length})`)
+      lines.push(`${CATEGORY_LABELS[cat]} (${pubs.length})`)
       lines.push('─'.repeat(40))
-      for (const pub of pubs) {
-        lines.push(formatPlainText(pub, style, globalIndex, boldNames))
-        globalIndex++
+      for (let i = 0; i < pubs.length; i++) {
+        lines.push(`${i + 1}. ${formatPlainText(pubs[i], style, i + 1, boldNames)}`)
       }
       lines.push('')
     }
@@ -46,6 +56,35 @@ export function PublicationList({ result, style }: PublicationListProps) {
 
   return (
     <div className="space-y-4">
+      {/* Member list */}
+      {result.members.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              Members
+              <Badge variant="secondary">{result.members.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1 text-sm">
+              {result.members.map(m => (
+                <li key={m.orcidId} className="flex items-center gap-2">
+                  <span className="font-medium">{m.orcidName ?? m.displayName}</span>
+                  <a
+                    href={`https://orcid.org/${m.orcidId}`}
+                    target="_blank"
+                    rel="noopener"
+                    className="text-xs text-muted-foreground underline"
+                  >
+                    {m.orcidId}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">
@@ -73,12 +112,6 @@ export function PublicationList({ result, style }: PublicationListProps) {
 
       {nonEmptyCategories.map(cat => {
         const pubs = result.categorized[cat]
-        // Calculate the starting index for this category
-        let startIndex = 1
-        for (const prevCat of nonEmptyCategories) {
-          if (prevCat === cat) break
-          startIndex += result.categorized[prevCat].length
-        }
 
         return (
           <Card key={cat}>
@@ -89,13 +122,12 @@ export function PublicationList({ result, style }: PublicationListProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ol className="space-y-3 text-sm list-none">
+              <ol className="space-y-3 text-sm list-decimal list-inside">
                 {pubs.map((pub, i) => (
-                  <li key={pub.doi ?? pub.title}>
-                    <div
-                      className="leading-relaxed"
+                  <li key={pub.doi ?? pub.title} className="leading-relaxed">
+                    <span
                       dangerouslySetInnerHTML={{
-                        __html: formatCitation(pub, style, startIndex + i, boldNames),
+                        __html: formatCitation(pub, style, i + 1, boldNames),
                       }}
                     />
                     {pub.pmid && (

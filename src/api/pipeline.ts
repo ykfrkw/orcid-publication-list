@@ -10,10 +10,17 @@ export interface FetchProgress {
   percent: number
 }
 
+export interface ResolvedMember {
+  orcidId: string
+  displayName: string
+  orcidName: string | null
+}
+
 export interface PipelineResult {
   publications: Publication[]
   categorized: Record<PublicationCategory, Publication[]>
-  boldNames: string[]  // names resolved from ORCID profiles
+  boldNames: string[]
+  members: ResolvedMember[]
   errors: string[]
 }
 
@@ -62,6 +69,7 @@ export async function runPipeline(
 ): Promise<PipelineResult> {
   const errors: string[] = []
   const boldNames: string[] = []
+  const members: ResolvedMember[] = []
   let allPubs: Publication[] = []
 
   // Stage 1: Fetch from ORCID (works + profile names)
@@ -78,7 +86,7 @@ export async function runPipeline(
         fetchOrcidName(entry.orcidId),
       ])
       allPubs.push(...pubs)
-      // Collect bold names: ORCID profile name + user-provided displayName
+      members.push({ orcidId: entry.orcidId, displayName: entry.displayName, orcidName })
       if (orcidName) boldNames.push(orcidName)
       if (entry.displayName && !entry.displayName.match(/^\d{4}-/)) {
         boldNames.push(entry.displayName)
@@ -183,5 +191,5 @@ export async function runPipeline(
     percent: 100,
   })
 
-  return { publications: allPubs, categorized, boldNames, errors }
+  return { publications: allPubs, categorized, boldNames, members, errors }
 }
