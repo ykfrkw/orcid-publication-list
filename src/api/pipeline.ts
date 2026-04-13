@@ -2,9 +2,10 @@ import type { OrcidEntry, Publication, PublicationCategory, YearRange, SortOrder
 import { categorizeWork } from '@/types'
 import { fetchOrcidWorks } from './orcid'
 import { batchFetchCrossref } from './crossref'
+import { batchFetchPubMedTypes, pubmedTypeToCategory } from './pubmed'
 
 export interface FetchProgress {
-  stage: 'orcid' | 'crossref' | 'done'
+  stage: 'orcid' | 'crossref' | 'pubmed' | 'done'
   message: string
   percent: number
 }
@@ -94,14 +95,14 @@ export async function runPipeline(
   onProgress?.({
     stage: 'crossref',
     message: `Enriching ${doisToFetch.length} publications via Crossref...`,
-    percent: 45,
+    percent: 40,
   })
 
   const crossrefData = await batchFetchCrossref(doisToFetch, (done, total) => {
     onProgress?.({
       stage: 'crossref',
       message: `Enriching via Crossref (${done}/${total})...`,
-      percent: 45 + Math.round((done / total) * 50),
+      percent: 40 + Math.round((done / total) * 45),
     })
   })
 
@@ -116,6 +117,26 @@ export async function runPipeline(
           if (meta.type === 'journal-article' && pub.orcidType === 'journal-article') {
             pub.type = 'journal-article'
           }
+        }
+      }
+    }
+  }
+
+  // Stage 3: Enrich via PubMed (publication types)
+  const pmidsToFetch = allPubs.filter(p => p.pmid).map(p => p.pmid!)
+  if (pmidsToFetch.length > 0) {
+    onProgress?.({
+      stage: 'pubmed',
+      message: `Fetching publication types from PubMed (${pmidsToFetch.length})...`,
+      percent: 90,
+    })
+
+    const pubmedData = await batchFetchPubMedTypes(pmidsToFetch)
+    for (const pub of allPubs) {
+      if (pub.pmid) {
+        const info = pubmedData.get(pub.pmid)
+        if (info) {
+          pub.pubmedCategory = pubmedTypeToCategory(info.pubTypes)
         }
       }
     }
@@ -148,7 +169,7 @@ export async function runPipeline(
     other: [],
   }
   for (const pub of allPubs) {
-    const cat = categorizeWork(pub.orcidType)
+    const cat = categorizeWork(pub)
     categorized[cat].push(pub)
   }
 

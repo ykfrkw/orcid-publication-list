@@ -23,16 +23,6 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
   const [style, setStyle] = useState<CitationStyle>('vancouver')
   const [sort, setSort] = useState<SortOrder>('date')
 
-  const handleParse = () => {
-    const parsed = parseOrcidInput(text)
-    setEntries(prev => {
-      const existing = new Set(prev.map(e => e.orcidId))
-      const newEntries = parsed.filter(e => !existing.has(e.orcidId))
-      return [...prev, ...newEntries]
-    })
-    setText('')
-  }
-
   const handleRemove = (orcidId: string) => {
     setEntries(prev => prev.filter(e => e.orcidId !== orcidId))
   }
@@ -44,19 +34,28 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
   }
 
   const handleSubmit = () => {
-    if (entries.length === 0) return
+    // Auto-parse any remaining text in the textarea
+    let allEntries = [...entries]
+    if (text.trim()) {
+      const parsed = parseOrcidInput(text)
+      const existing = new Set(allEntries.map(e => e.orcidId))
+      const newEntries = parsed.filter(e => !existing.has(e.orcidId))
+      allEntries = [...allEntries, ...newEntries]
+      setEntries(allEntries)
+      setText('')
+    }
+
+    if (allEntries.length === 0) return
     const from = yearFrom ? parseInt(yearFrom) : undefined
     const to = yearTo ? parseInt(yearTo) : undefined
     const yearRange = (from || to) ? { from, to } : undefined
-    onSubmit(entries, yearRange, style, sort)
+    onSubmit(allEntries, yearRange, style, sort)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleParse()
-    }
-  }
+  // Live-parse to show preview badges
+  const previewEntries = text.trim() ? parseOrcidInput(text) : []
+  const existingIds = new Set(entries.map(e => e.orcidId))
+  const newPreview = previewEntries.filter(e => !existingIds.has(e.orcidId))
 
   return (
     <Card>
@@ -72,20 +71,26 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
           <Label htmlFor="orcid-input">ORCID IDs</Label>
           <Textarea
             id="orcid-input"
-            placeholder={`Paste ORCID IDs here (one per line, or comma-separated):\nYuki Furukawa\thttps://orcid.org/0000-0003-1317-0220\n0000-0002-4573-7732`}
+            placeholder={`Paste ORCID IDs here, then click Generate:\nYuki Furukawa  https://orcid.org/0000-0003-1317-0220\n0000-0002-4573-7732`}
             value={text}
             onChange={e => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
             rows={4}
           />
-          <Button onClick={handleParse} variant="secondary" size="sm" disabled={!text.trim()}>
-            Add IDs
-          </Button>
+          {newPreview.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-xs text-muted-foreground py-0.5">Detected:</span>
+              {newPreview.map(e => (
+                <Badge key={e.orcidId} variant="outline" className="text-xs">
+                  {e.displayName} ({e.orcidId})
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
 
         {entries.length > 0 && (
           <div className="space-y-2">
-            <Label>Members ({entries.length})</Label>
+            <Label>Added Members ({entries.length})</Label>
             <div className="flex flex-wrap gap-2">
               {entries.map(entry => (
                 <Badge key={entry.orcidId} variant="secondary" className="gap-1 py-1 pl-2 pr-1">
@@ -109,8 +114,8 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 items-end">
-          <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
             <Label htmlFor="year-from">Year From</Label>
             <Input
               id="year-from"
@@ -123,7 +128,7 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="year-to">Year To</Label>
             <Input
               id="year-to"
@@ -136,7 +141,7 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label>Citation Style</Label>
             <Select value={style} onValueChange={v => setStyle(v as CitationStyle)}>
               <SelectTrigger>
@@ -150,7 +155,7 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label>Sort By</Label>
             <Select value={sort} onValueChange={v => setSort(v as SortOrder)}>
               <SelectTrigger>
@@ -164,7 +169,12 @@ export function OrcidInput({ onSubmit, isLoading }: OrcidInputProps) {
           </div>
         </div>
 
-        <Button onClick={handleSubmit} disabled={entries.length === 0 || isLoading} className="w-full sm:w-auto">
+        <Button
+          onClick={handleSubmit}
+          disabled={(entries.length === 0 && newPreview.length === 0) || isLoading}
+          className="w-full"
+          size="lg"
+        >
           {isLoading ? 'Fetching...' : 'Generate List'}
         </Button>
       </CardContent>

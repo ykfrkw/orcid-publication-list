@@ -14,6 +14,7 @@ export interface Publication {
   pmid?: string
   type: string
   orcidType: string
+  pubmedCategory?: string  // from PubMed: 'original' | 'review' | 'letter' | 'editorial' | 'unknown'
   sourceOrcidIds: string[]
 }
 
@@ -44,8 +45,14 @@ export const CATEGORY_LABELS: Record<PublicationCategory, string> = {
   other: 'Other Publication Types',
 }
 
-export function categorizeWork(orcidType: string): PublicationCategory {
-  const t = orcidType.toLowerCase()
+export function categorizeWork(pub: Publication): PublicationCategory {
+  // PubMed category is most reliable when available
+  if (pub.pubmedCategory && pub.pubmedCategory !== 'unknown') {
+    return pub.pubmedCategory as PublicationCategory
+  }
+
+  // Fallback to ORCID type
+  const t = pub.orcidType.toLowerCase()
   if (t === 'journal-article') return 'original'
   if (t === 'review') return 'review'
   if (t.includes('letter')) return 'letter'
